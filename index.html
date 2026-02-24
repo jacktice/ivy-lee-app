@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0f0f13" />
+  <title>Ivy Lee</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0f0f13; color: #f0ede8; min-height: 100vh; }
+    #app { max-width: 420px; margin: 0 auto; padding-bottom: 40px; }
+    .header { background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 28px 24px 20px; border-bottom: 1px solid #2a2a3e; }
+    .label { font-size: 11px; letter-spacing: 3px; color: #8b7cf6; text-transform: uppercase; margin-bottom: 4px; }
+    .date { font-size: 22px; font-weight: 700; }
+    .progress-bars { margin-top: 10px; display: flex; gap: 8px; }
+    .bar { height: 4px; flex: 1; border-radius: 2px; }
+    .bar.done { background: #8b7cf6; }
+    .bar.set { background: #3a3a5c; }
+    .bar.empty { background: #1f1f30; }
+    .count { margin-top: 6px; font-size: 12px; color: #6b6b8a; }
+    .nav { display: flex; border-bottom: 1px solid #2a2a3e; }
+    .nav button { flex: 1; padding: 14px; background: none; border: none; font-size: 14px; cursor: pointer; border-bottom: 2px solid transparent; }
+    .nav button.active { color: #8b7cf6; font-weight: 700; border-bottom: 2px solid #8b7cf6; }
+    .nav button.inactive { color: #6b6b8a; }
+    .body { padding: 20px; }
+    .empty-state { text-align: center; color: #6b6b8a; margin-top: 60px; }
+    .empty-state .icon { font-size: 40px; }
+    .empty-state p { margin-top: 12px; font-size: 15px; }
+    .empty-state span { color: #8b7cf6; font-weight: 600; }
+    .success { background: linear-gradient(135deg, #1a2e1a, #0f1f0f); border: 1px solid #2a5c2a; border-radius: 12px; padding: 16px; margin-bottom: 20px; text-align: center; }
+    .success .emoji { font-size: 28px; }
+    .success p { font-size: 16px; font-weight: 600; color: #4ade80; margin-top: 4px; }
+    .task-item { display: flex; align-items: center; gap: 14px; padding: 16px; margin-bottom: 10px; border-radius: 12px; cursor: pointer; transition: all 0.15s; border: 1px solid #2a2a3e; }
+    .task-item.current { background: #1e1a35; border-color: #6b4fc8; }
+    .task-item.pending { background: #16161f; }
+    .task-item.done { background: #1a1a2e; opacity: 0.5; }
+    .circle { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #3a3a5c; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .circle.active { border-color: #8b7cf6; }
+    .circle.checked { border-color: #8b7cf6; background: #8b7cf6; color: white; font-size: 13px; }
+    .task-meta { font-size: 13px; color: #6b6b8a; margin-bottom: 2px; }
+    .task-text { font-size: 15px; }
+    .task-text.strikethrough { text-decoration: line-through; color: #6b6b8a; }
+    .add-row { display: flex; gap: 8px; margin-bottom: 20px; }
+    .add-row input { flex: 1; background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 10px; padding: 12px 14px; color: #f0ede8; font-size: 15px; outline: none; }
+    .add-row button { background: #8b7cf6; border: none; border-radius: 10px; padding: 12px 18px; color: white; font-size: 18px; cursor: pointer; }
+    .full-banner { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 10px; padding: 12px 14px; margin-bottom: 20px; font-size: 13px; color: #8b7cf6; text-align: center; }
+    .plan-item { display: flex; align-items: center; gap: 10px; padding: 14px; margin-bottom: 8px; background: #16161f; border: 1px solid #2a2a3e; border-radius: 12px; }
+    .plan-num { color: #6b6b8a; font-size: 13px; width: 20px; text-align: center; }
+    .plan-text { flex: 1; font-size: 15px; }
+    .arrows { display: flex; flex-direction: column; gap: 2px; }
+    .arrows button { background: none; border: none; font-size: 14px; padding: 2px 4px; cursor: pointer; }
+    .remove-btn { background: none; border: none; color: #6b6b8a; cursor: pointer; font-size: 18px; padding: 0 4px; }
+    .clear-btn { width: 100%; margin-top: 8px; padding: 12px; background: none; border: 1px solid #2a2a3e; border-radius: 10px; color: #6b6b8a; font-size: 13px; cursor: pointer; }
+    .hint { font-size: 13px; color: #6b6b8a; margin-bottom: 16px; line-height: 1.6; }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+  const MAX = 6;
+
+  function getTodayKey() {
+    return 'tasks-' + new Date().toISOString().split('T')[0];
+  }
+
+  function getYesterdayKey() {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    return 'tasks-' + d.toISOString().split('T')[0];
+  }
+
+  function loadTasks() {
+    const saved = localStorage.getItem(getTodayKey());
+    if (saved) return JSON.parse(saved);
+    const yesterday = localStorage.getItem(getYesterdayKey());
+    if (yesterday) return JSON.parse(yesterday).filter(t => !t.done).map(t => ({ ...t, done: false }));
+    return [];
+  }
+
+  function saveTasks(tasks) {
+    localStorage.setItem(getTodayKey(), JSON.stringify(tasks));
+  }
+
+  function formatDate() {
+    return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  let tasks = loadTasks();
+  let view = 'today';
+  let inputVal = '';
+
+  function render() {
+    const doneCount = tasks.filter(t => t.done).length;
+    const allDone = tasks.length > 0 && doneCount === tasks.length;
+    const currentTask = tasks.find(t => !t.done);
+
+    document.getElementById('app').innerHTML = `
+      <div class="header">
+        <div class="label">Ivy Lee Method</div>
+        <div class="date">${formatDate()}</div>
+        <div class="progress-bars">
+          ${[...Array(MAX)].map((_, i) => `<div class="bar ${i < doneCount ? 'done' : i < tasks.length ? 'set' : 'empty'}"></div>`).join('')}
+        </div>
+        <div class="count">${doneCount}/${tasks.length} tasks complete</div>
+      </div>
+
+      <div class="nav">
+        <button class="${view === 'today' ? 'active' : 'inactive'}" onclick="setView('today')">Focus</button>
+        <button class="${view === 'plan' ? 'active' : 'inactive'}" onclick="setView('plan')">Plan</button>
+      </div>
+
+      <div class="body">
+        ${view === 'today' ? `
+          ${allDone ? `<div class="success"><div class="emoji">🎉</div><p>All done! Great work today.</p></div>` : ''}
+          ${tasks.length === 0 ? `<div class="empty-state"><div class="icon">📋</div><p>No tasks yet.</p><p style="font-size:13px;margin-top:4px">Go to <span>Plan</span> to add your 6 priorities.</p></div>` : ''}
+          ${tasks.map((t, i) => {
+            const isCurrent = t === currentTask;
+            return `<div class="task-item ${t.done ? 'done' : isCurrent ? 'current' : 'pending'}" onclick="toggleDone(${t.id})">
+              <div class="circle ${t.done ? 'checked' : isCurrent ? 'active' : ''}">${t.done ? '✓' : ''}</div>
+              <div style="flex:1">
+                <div class="task-meta">#${i + 1}${isCurrent && !t.done ? ' · Up next' : ''}</div>
+                <div class="task-text ${t.done ? 'strikethrough' : ''}">${t.text}</div>
+              </div>
+            </div>`;
+          }).join('')}
+        ` : `
+          <div class="hint">Add up to 6 tasks and prioritize them in order.</div>
+          ${tasks.length < MAX ? `
+            <div class="add-row">
+              <input id="task-input" type="text" placeholder="Task ${tasks.length + 1} of ${MAX}…" value="${inputVal}" oninput="inputVal=this.value" onkeydown="if(event.key==='Enter')addTask()" />
+              <button onclick="addTask()">+</button>
+            </div>
+          ` : `<div class="full-banner">✓ 6 tasks set — you're ready!</div>`}
+          ${tasks.map((t, i) => `
+            <div class="plan-item">
+              <div class="plan-num">${i + 1}</div>
+              <div class="plan-text">${t.text}</div>
+              <div class="arrows">
+                <button style="color:${i === 0 ? '#2a2a3e' : '#6b6b8a'}" onclick="moveUp(${i})" ${i === 0 ? 'disabled' : ''}>▲</button>
+                <button style="color:${i === tasks.length - 1 ? '#2a2a3e' : '#6b6b8a'}" onclick="moveDown(${i})" ${i === tasks.length - 1 ? 'disabled' : ''}>▼</button>
+              </div>
+              <button class="remove-btn" onclick="removeTask(${t.id})">×</button>
+            </div>
+          `).join('')}
+          ${tasks.length > 0 ? `<button class="clear-btn" onclick="clearAll()">Clear all</button>` : ''}
+        `}
+      </div>
+    `;
+
+    if (view === 'plan' && tasks.length < MAX) {
+      const inp = document.getElementById('task-input');
+      if (inp) inp.focus();
+    }
+  }
+
+  function setView(v) { view = v; render(); }
+
+  function toggleDone(id) {
+    tasks = tasks.map(t => t.id === id ? { ...t, done: !t.done } : t);
+    saveTasks(tasks);
+    render();
+  }
+
+  function addTask() {
+    if (!inputVal.trim() || tasks.length >= MAX) return;
+    tasks = [...tasks, { id: Date.now(), text: inputVal.trim(), done: false }];
+    inputVal = '';
+    saveTasks(tasks);
+    render();
+  }
+
+  function moveUp(idx) {
+    if (idx === 0) return;
+    const next = [...tasks];
+    [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+    tasks = next;
+    saveTasks(tasks);
+    render();
+  }
+
+  function moveDown(idx) {
+    if (idx === tasks.length - 1) return;
+    const next = [...tasks];
+    [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+    tasks = next;
+    saveTasks(tasks);
+    render();
+  }
+
+  function removeTask(id) {
+    tasks = tasks.filter(t => t.id !== id);
+    saveTasks(tasks);
+    render();
+  }
+
+  function clearAll() {
+    if (confirm('Clear all tasks?')) { tasks = []; saveTasks(tasks); render(); }
+  }
+
+  render();
+</script>
+</body>
+</html>
